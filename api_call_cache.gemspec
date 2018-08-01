@@ -1,4 +1,3 @@
-
 lib = File.expand_path("../lib", __FILE__)
 $LOAD_PATH.unshift(lib) unless $LOAD_PATH.include?(lib)
 require "api_call_cache/version"
@@ -10,7 +9,7 @@ Gem::Specification.new do |spec|
   spec.email         = ['14akshayrao@gmail.com']
 
   spec.summary       = %q{Framework to manage caching of http api calls}
-  spec.description   = %q{Framework to manage caching of http api calls}
+  spec.description   = %q{Useful for inter-service GET HTTP calls}
   spec.homepage      = "http://www.avanti.in"
   spec.license       = "MIT"
 
@@ -32,6 +31,8 @@ Gem::Specification.new do |spec|
   spec.executables   = spec.files.grep(%r{^exe/}) { |f| File.basename(f) }
   spec.require_paths = ["lib"]
 
-  spec.add_development_dependency "bundler", "~> 1.16"
-  # spec.add_development_dependency "rake", "~> 10.0"
+  spec.add_development_dependency 'bundler', "~> 1.16"
+  spec.add_development_dependency 'rack-oauth2', "~> 1.2"
+  spec.add_development_dependency 'redis', "~> 3.2"
+  spec.add_development_dependency 'hashie', "~> 3.4"
 end
