@@ -41,6 +41,6 @@ Gem::Specification.new do |spec|
   spec.add_runtime_dependency 'rack-oauth2', ">= 1.2"
   spec.add_runtime_dependency 'redis', ">= 3.2"
   spec.add_runtime_dependency 'hashie', ">= 3.4"
-  spec.add_runtime_dependency 'active_support/core_ext/object', ">= 2.1"
+  spec.add_runtime_dependency 'active_support/all', ">= 2.1"
   spec.add_runtime_dependency 'httpclient', ">= 2.7"
 end
