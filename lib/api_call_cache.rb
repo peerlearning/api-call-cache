@@ -64,7 +64,11 @@ class ApiCallCache
   ##############################################################################
   # Class methods
   ##############################################################################
- 
+  def self.api_get(base_url_key, rel_path, req_params = {}, req_opts = {})
+    req_opts = req_opts.merge({base_url_key: base_url_key})
+    cached_api_call(:get, rel_path, req_params, req_opts)    
+  end
+
   def self.cached_api_call(req_type, rel_path, req_params = {}, req_opts = {})
     obj = self.new
     obj.cached_api_call_core(req_type, rel_path, req_params, req_opts)
@@ -154,7 +158,7 @@ class ApiCallCache
 
     Hashie::Mash.new(status:      result_status, 
                      body:        result_body, 
-                     from_cache?: try_from_cache && !cache_miss,
+                     from_api_cache?:  try_from_cache && !cache_miss,
                      ok?:         ::HTTP::Status::SUCCESSFUL_STATUS.include?(result_status))
   end
 
