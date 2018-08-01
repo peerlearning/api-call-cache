@@ -156,10 +156,10 @@ class ApiCallCache
       acc_log_entry[:expires_at] = (ttl.seconds.from_now).to_time.localtime(@@tz_offset).to_s
     end
 
-    Hashie::Mash.new(status:      result_status, 
-                     body:        result_body, 
-                     from_api_cache?:  try_from_cache && !cache_miss,
-                     ok?:         ::HTTP::Status::SUCCESSFUL_STATUS.include?(result_status))
+    Hashie::Mash.new(status:     result_status, 
+                     body:       result_body, 
+                     from_cache: try_from_cache && !cache_miss,
+                     ok:         ::HTTP::Status::SUCCESSFUL_STATUS.include?(result_status))
   end
 
   def write_to_api_cache(cache_key, api_resp, cache_body, cache_status, override_cache_expiry)
