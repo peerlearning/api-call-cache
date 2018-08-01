@@ -257,12 +257,3 @@ class ApiCallCache
     time.strftime "%Y-%m-%d %H:%M:%S.#{usec} %z"
   end
 end
-
-ApiCallCache.configure do |config|
-  config.base_urls({})
-
-  config.log_folder_path "log/api_call_cache.log", 'monthly'
-
-  config.salt 'api-call-cache'
-  config.offset '+05:30'
-end
