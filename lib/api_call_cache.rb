@@ -1,4 +1,11 @@
-require "api_call_cache/version"
+require 'logger'
+require 'redis'
+require 'hashie'
+require 'active_support/core_ext/object'
+require 'httpclient'
+require 'rack/oauth2'
+
+require 'api_call_cache/version'
 
 class ApiCallCache
 
@@ -12,16 +19,16 @@ class ApiCallCache
     @@redis_inst = redis_inst 
   end
 
-  def self.log_folder_path(log_file = 'log/api_call_cache.log', rotation = 'monthly')
+  def self.logger_path(log_file = 'log/api_call_cache.log', rotation = 'monthly')
     @@acc_logger ||=  Logger.new(log_file, rotation)
   end
 
   def self.base_urls(base_urls_hash)
-    @@acc_base_urls = base_urls_hash
+    @@acc_base_urls = Hashie.symbolize_keys(base_urls_hash)
   end
 
   def self.salt(salt_str)
-     raise ArgumentError, 'requires a string as salt' unless salt_str.present?
+     raise ArgumentError, 'requires a string as salt' if salt_str.empty?
     @@acc_salt = salt_str
   end
 
@@ -50,8 +57,8 @@ class ApiCallCache
     self.class.get_redis
   end
 
-  def self.offset(offset= '+05:30')
-    @@acc_offset = offset
+  def self.set_tz_offset(offset = '+05:30')
+    @@tz_offset = offset
   end
 
   ##############################################################################
@@ -66,7 +73,7 @@ class ApiCallCache
     obj.acc_log_entry[:desc] = exp.message
     raise
   ensure
-    @@acc_logger.info obj.acc_log_entry.to_a.flatten.join("\t")
+    @@acc_logger.info obj.acc_log_entry.to_a.flatten.join("\t") if @@acc_logger
   end
 
   def self.make_api_call(req_type, url, access_token, body=nil)
@@ -77,19 +84,21 @@ class ApiCallCache
   # Instance methods
   ##############################################################################
   def cached_api_call_core(req_type, rel_path, req_params, req_opts)
-    req_opts = self.class.req_defaults.merge(req_opts.symbolize_keys)
+
+    Hashie.symbolize_keys!(req_opts)
+    req_opts = self.class.req_defaults.merge(req_opts)
     req_type = req_type.to_s.downcase.to_sym
     
     # Get from cache if required
     cached_body = nil
 
     base_url_key = req_opts[:base_url_key].to_s
-    raise 'Base URL KEY not found' if base_url_key.blank?
+    raise 'Base URL KEY not found' if base_url_key.empty?
 
     acc_log_entry[:api] = [base_url_key.to_s, rel_path.to_s].join('/')
 
-    base_url = @@acc_base_urls[base_url_key]
-    raise "Base URL not found for #{base_url_key}" if base_url.blank?
+    base_url = @@acc_base_urls[base_url_key.to_sym].to_s
+    raise "Base URL not found for #{base_url_key}" if base_url.empty?
 
     cache_key       = gen_api_call_cache_key(req_type, base_url_key, 
                                              rel_path, req_params,
@@ -108,7 +117,7 @@ class ApiCallCache
       cache_miss = cached_body.nil?  # NOTE: 'nil?' used here on purpose instead of 'blank?'
       acc_log_entry[:status] = cache_miss ? 'miss' : 'hit'
 
-      ttl = $redis.ttl(cache_key).to_i.seconds
+      ttl = get_redis.ttl(cache_key).to_i.seconds
     else
       acc_log_entry[:status] = 'ignore'
     end
@@ -134,13 +143,13 @@ class ApiCallCache
         ttl = write_to_api_cache(cache_key, api_resp, result_body, result_status,
                            req_opts[:override_cache_expiry])
 
-        acc_log_entry[:expires_at] = (ttl.to_i.seconds.from_now).to_time.localtime(@@acc_offset).to_s
+        acc_log_entry[:expires_at] = (ttl.to_i.seconds.from_now).to_time.localtime(@@tz_offset).to_s
       end
     else
       # Found in cache. Using it.
       result_body   = cached_body
       result_status = cached_status
-      acc_log_entry[:expires_at] = (ttl.seconds.from_now).to_time.localtime(@@acc_offset).to_s
+      acc_log_entry[:expires_at] = (ttl.seconds.from_now).to_time.localtime(@@tz_offset).to_s
     end
 
     Hashie::Mash.new(status:      result_status, 
@@ -183,14 +192,14 @@ class ApiCallCache
 
   def gen_api_call_rel_url(rel_path, req_params)
     rel_path += '.json'
-    req_params.blank? ? rel_path : [rel_path, req_params.to_param].join('?')
+    req_params.empty? ? rel_path : [rel_path, req_params.to_query].join('?')
   end
 
   def gen_api_call_cache_key(_req_type, base_url_key, rel_path, req_params, hashed_params = nil)
 
-    if hashed_params.blank?
+    if hashed_params.nil? || hashed_params.empty?
       # Since params hash key hasn't been overridden using 
-      plain = req_params.sort.to_h.to_param # sort req_params alphabetically
+      plain = req_params.sort.to_h.to_query # sort req_params alphabetically
       hashed_params = OpenSSL::HMAC.hexdigest('sha256', @@acc_salt, plain)
     end
 
@@ -203,9 +212,9 @@ class ApiCallCache
   def get_cache_expiry(response, user_expiry = nil)
     # Extract server defined TTL
     ext_ttl = nil
-    if user_expiry.blank?
-      cache_ctrl_hdr = response.headers['Api-Cache-Control']
-      cache_ctrl_hdr = response.headers['Cache-Control'] if cache_ctrl_hdr.blank?
+    if user_expiry.nil?
+      cache_ctrl_hdr = response.headers['Api-Cache-Control'].to_s
+      cache_ctrl_hdr = response.headers['Cache-Control'] if cache_ctrl_hdr.empty?
       cache_ctrl_hdr.split(',').map(&:strip).each do |opt|
         opts = opt.split('=')
         next if opts.first != 'max-age'
@@ -252,8 +261,17 @@ class ApiCallCache
   end
 
   def log_time
-    time = Time.now.localtime(@@acc_offset)
+    time = Time.now.localtime(@@tz_offset)
     usec = time.usec.to_s.rjust(6, '0')
     time.strftime "%Y-%m-%d %H:%M:%S.#{usec} %z"
   end
+end
+
+ApiCallCache.configure do |config|
+  config.base_urls({})
+
+  config.logger_path nil
+
+  config.salt 'api-call-cache'
+  config.set_tz_offset '+05:30'
 end
