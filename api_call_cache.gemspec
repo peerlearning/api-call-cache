@@ -37,7 +37,7 @@ Gem::Specification.new do |spec|
 
   spec.required_ruby_version = '>= 2.2'
 
-  spec.add_runtime_dependency 'bundler', ">= 1.16"
+  spec.add_runtime_dependency 'bundler', ">= 1"
   spec.add_runtime_dependency 'rack-oauth2', ">= 1.2"
   spec.add_runtime_dependency 'redis', ">= 3.2"
   spec.add_runtime_dependency 'hashie', ">= 3.4"
