@@ -20,7 +20,7 @@ class ApiCallCache
   end
 
   def self.logger_path(log_file = 'log/api_call_cache.log', rotation = 'monthly')
-    @@acc_logger ||=  Logger.new(log_file, rotation)
+    @@acc_logger =  Logger.new(log_file, rotation)
   end
 
   def self.base_urls(base_urls_hash)
