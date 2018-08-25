@@ -9,6 +9,8 @@ require 'api_call_cache/version'
 
 class ApiCallCache
 
+  DEFAULT_ACCESS_TOKEN = 'DAT'
+
   def self.configure
     yield self
   end
@@ -20,7 +22,7 @@ class ApiCallCache
   end
 
   def self.logger_path(log_file = 'log/api_call_cache.log', rotation = 'monthly')
-    @@acc_logger =  Logger.new(log_file, rotation)
+    @@acc_logger = Logger.new(log_file, rotation)
   end
 
   def self.base_urls(base_urls_hash)
@@ -35,9 +37,10 @@ class ApiCallCache
   def self.req_defaults
     @req_opt_defaults ||= {
                             base_url_key: '',
-                            access_token: '', # TODO_FIX -- will need NetHttp etc
+                            access_token: DEFAULT_ACCESS_TOKEN,
                             from_cache: true,
                             override_cache_expiry: nil,     # seconds. Overrides Cache-Control max-age value
+                            append_dot_json: true,
                             override_params_cache_key: nil, # If provided, this value will be used
                                                             # as the 'params' part of the cache key, 
                                                             # instead of manually 'hashed_params'
@@ -128,7 +131,7 @@ class ApiCallCache
 
     if cache_miss
       
-      rel_url = gen_api_call_rel_url(rel_path, req_params)
+      rel_url = gen_api_call_rel_url(rel_path, req_params, req_opts[:append_dot_json])
 
       acc_log_entry[:params_f] = req_params.to_s
 
@@ -194,8 +197,8 @@ class ApiCallCache
                             ok?:    false)
   end
 
-  def gen_api_call_rel_url(rel_path, req_params)
-    rel_path += '.json'
+  def gen_api_call_rel_url(rel_path, req_params, app_dot_json)
+    rel_path += '.json' if app_dot_json
     req_params.empty? ? rel_path : [rel_path, req_params.to_query].join('?')
   end
 
