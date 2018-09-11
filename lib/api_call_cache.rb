@@ -16,8 +16,7 @@ class ApiCallCache
   end
 
   def self.api_cache_redis_instance(redis_inst)
-
-    raise ArgumentError, 'requires a redis instance' unless redis_inst.is_a? Redis
+    raise ArgumentError, 'requires a redis instance' unless redis_inst
     @@redis_inst = redis_inst 
   end
 
